@@ -7,7 +7,14 @@ import time
 import datetime
 import os
 import urllib
-        
+import pymongo
+import pprint
+import sched
+
+from pymongo import MongoClient
+client = MongoClient()
+db = client.iotAlarmClock
+
 owm = pyowm.OWM('412a6516f506201b00a7bc576cdd287a')
 weatherCity = 'Dubai'
 currentWeather = owm.weather_at_place(weatherCity).get_weather()
@@ -15,6 +22,7 @@ weatherStatus = currentWeather.get_status()
 weatherTemp = int(currentWeather.get_temperature('fahrenheit')['temp'])
 weatherIconCode = currentWeather.get_weather_icon_name()
 weatherString = "Temp: " + str(weatherTemp) + "F " + weatherStatus.lower() + " in " + weatherCity
+
 
 class RunScreen(SampleBase):
     def __init__(self, *args, **kwargs):
@@ -27,6 +35,7 @@ class RunScreen(SampleBase):
         self.font = graphics.Font()
         self.font.LoadFont('rpi-rgb-led-matrix/fonts/tom-thumb.bdf')
         self.time = datetime.datetime.now()
+        self.checkDb()
 
     def scroll(self, secInd, length):
         if (secInd >= 0 and secInd <= 3 and length > 32):
@@ -37,6 +46,48 @@ class RunScreen(SampleBase):
         elif (secInd >= 0 and secInd <= 3 and length <= 32):
             setattr(self, "scrollPos" + str(secInd), 0)
     
+    def checkDb(self):
+        self.text_record = db.texts.find_one({"context": "text"})
+        self.weather_record = db.weathers.find_one({"context": "weather"})
+        self.nextalarm_record = db.nextalarms.find_one({"context": "nextalarm"})
+        self.date_record = db.dates.find_one({"context": "date"})
+        self.time_record = db.times.find_one({"context": "time"})
+        self.text_red = self.text_record["color"]["r"]
+        self.text_green = self.text_record["color"]["g"]
+        self.text_blue = self.text_record["color"]["b"]
+        self.weather_red = self.weather_record["color"]["r"]
+        self.weather_green = self.weather_record["color"]["g"]
+        self.weather_blue = self.weather_record["color"]["b"]
+        self.nextalarm_red = self.nextalarm_record["color"]["r"]
+        self.nextalarm_green = self.nextalarm_record["color"]["g"]
+        self.nextalarm_blue = self.nextalarm_record["color"]["b"]
+        self.date_red = self.date_record["color"]["r"]
+        self.date_green = self.date_record["color"]["g"]
+        self.date_blue = self.date_record["color"]["b"]
+        self.time_red = self.time_record["color"]["r"]
+        self.time_green = self.time_record["color"]["g"]
+        self.time_blue = self.time_record["color"]["b"]
+        #self.nextalarm_color = graphics.Color(int(self.nextalarm_record["color"]["r"]), int(self.nextalarm_record["color"]["g"]), int(self.nextalarm_record["color"]["b"]))
+        #self.date_color = graphics.Color(int(self.date_record["color"]["r"]), int(self.date_record["color"]["g"]), int(self.date_record["color"]["b"]))
+       # self.time_color = graphics.Color(int(self.time_record["color"]["r"]), int(self.time_record["color"]["g"]), int(self.time_record["color"]["b"]))
+
+        pprint.pprint("Updated db... got:");
+
+    def checkWeather(self):
+        pprint.pprint("Update weather here");
+
+    def drawScreen(self):
+        canvas = self.matrix.CreateFrameCanvas()
+        canvas.Clear()
+        self.displayClock(canvas, graphics.Color(self.time_red, self.time_green, self.time_blue), self.time_record["position"])
+        self.displayWeather(canvas, graphics.Color(self.weather_red, self.weather_green, self.weather_blue), self.weather_record["position"])
+        self.displayText(canvas, self.text_record["text"], graphics.Color(self.text_red, self.text_green, self.text_blue), 3, self.text_record["position"])
+        self.displayDate(canvas, graphics.Color(self.date_red, self.date_green, self.date_blue), self.date_record["position"])
+        canvas = self.matrix.SwapOnVSync(canvas)
+            
+ 
+    
+ 
     def getSectionHeight(self, sectionIndex):
         if (sectionIndex == 0):
             return 9;
@@ -64,18 +115,30 @@ class RunScreen(SampleBase):
         self.displayText(canvas, self.time.strftime("%I:%M%p"), color, 2, secInd);
 
     def run(self):
-        while True:
-            canvas = self.matrix.CreateFrameCanvas()
-            canvas.Clear()
-        
-            self.displayClock(canvas, graphics.Color(255, 165, 0), 0)
-            self.displayWeather(canvas, graphics.Color(0, 255, 0), 1)
-            self.displayText(canvas, "Example text", graphics.Color(0, 255, 255), 3, 2)
-            self.displayDate(canvas, graphics.Color(255, 0, 0), 3)
+        self.checkDb();
+        updateDbValues = 10 #How many seconds between calls
+        updateWeather = 30
+        updateDisplay = 0.05
 
-            time.sleep(0.05)
-            canvas = self.matrix.SwapOnVSync(canvas)
-            
+        tdb = time.time() #db initial timer
+        tw = time.time() #weather timer
+        tdisp = time.time() #display initial timer
+
+
+        while True:
+            t1 = time.time()
+            if t1 - tw >= updateWeather:
+                self.checkWeather()
+                tw = time.time()
+
+            if t1 - tdb >= updateDbValues:
+                self.checkDb()
+                tdb = time.time()
+
+            if t1 - tdisp >= updateDisplay:
+                self.drawScreen()
+                tdisp = time.time()
+                    
 
 # Main function
 if __name__ == "__main__":
