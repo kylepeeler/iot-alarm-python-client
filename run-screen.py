@@ -11,16 +11,18 @@ import pymongo
 import pprint
 import sched
 
-client = MongoClient()
-db = client.iotAlarmClock
-
 owm = pyowm.OWM('412a6516f506201b00a7bc576cdd287a')
-weatherCity = 'Dubai'
-currentWeather = owm.weather_at_place(weatherCity).get_weather()
-weatherStatus = currentWeather.get_status()
-weatherTemp = int(currentWeather.get_temperature('fahrenheit')['temp'])
-weatherIconCode = currentWeather.get_weather_icon_name()
-weatherString = "Temp: " + str(weatherTemp) + "F " + weatherStatus.lower() + " in " + weatherCity
+
+class Weather():
+    def __init__(self, *args, **kwargs):
+        self.weatherCity = 'Indianapolis'
+        self.updateWeatherStatus()
+        
+    def updateWeatherStatus(self):
+        self.currentWeather = owm.weather_at_place(self.weatherCity).get_weather()
+        weatherStatus = self.currentWeather.get_status()
+        weatherTemp = int(self.currentWeather.get_temperature('fahrenheit')['temp'])
+        self.weatherString = "Temp: " + str(weatherTemp) + "F " + weatherStatus.lower() + " in " + self.weatherCity
 
 class Database():
       def __init__(self, *args, **kwargs):
@@ -29,6 +31,7 @@ class Database():
           self.updateDB()
       
       def updateDB(self):
+        pprint.pprint("Refreshing MongoDB values...")
         self.text_record = self.db.texts.find_one({"context": "text"})
         self.weather_record = self.db.weathers.find_one({"context": "weather"})
         self.nextalarm_record = self.db.nextalarms.find_one({"context": "nextalarm"})
@@ -49,7 +52,7 @@ class Database():
         self.time_red = self.time_record["color"]["r"]
         self.time_green = self.time_record["color"]["g"]
         self.time_blue = self.time_record["color"]["b"]
-        pprint.pprint("Refreshed db values...")
+        
 
 class RunScreen(MatrixBase):
     def __init__(self, *args, **kwargs):
@@ -62,6 +65,7 @@ class RunScreen(MatrixBase):
         self.font.LoadFont('rpi-rgb-led-matrix/fonts/tom-thumb.bdf')
         self.time = datetime.datetime.now()
         self.alarmDB = Database()
+        self.weather = Weather()
 
     def scroll(self, secInd, length):
         if (secInd >= 0 and secInd <= 3 and length > 32):
@@ -72,14 +76,11 @@ class RunScreen(MatrixBase):
         elif (secInd >= 0 and secInd <= 3 and length <= 32):
             setattr(self, "scrollPos" + str(secInd), 0)
 
-    def checkWeather(self):
-        pprint.pprint("Update weather here")
-
     def drawScreen(self):
         canvas = self.matrix.CreateFrameCanvas()
         canvas.Clear()
         self.displayClock(canvas, graphics.Color(self.alarmDB.time_red, self.alarmDB.time_green, self.alarmDB.time_blue), self.alarmDB.time_record["position"])
-        self.displayWeather(canvas, graphics.Color(self.alarmDB.weather_red, self.alarmDB.weather_green, self.alarmDB.weather_blue), self.alarmDB.weather_record["position"])
+        self.displayWeather(canvas, self.weather.weatherString, graphics.Color(self.alarmDB.weather_red, self.alarmDB.weather_green, self.alarmDB.weather_blue), self.alarmDB.weather_record["position"])
         self.displayText(canvas, self.alarmDB.text_record["text"], graphics.Color(self.alarmDB.text_red, self.alarmDB.text_green, self.alarmDB.text_blue), 3, self.alarmDB.text_record["position"])
         self.displayDate(canvas, graphics.Color(self.alarmDB.date_red, self.alarmDB.date_green, self.alarmDB.date_blue), self.alarmDB.date_record["position"])
         canvas = self.matrix.SwapOnVSync(canvas)
@@ -104,7 +105,7 @@ class RunScreen(MatrixBase):
     def displayDate(self, canvas, color, secInd):
         self.displayText(canvas, self.time.strftime("%x"), color, 0, secInd)
 
-    def displayWeather(self, canvas, color, secInd):
+    def displayWeather(self, canvas, weatherString, color, secInd):
         self.displayText(canvas, weatherString, color, 0, secInd)
             
     def displayClock(self, canvas, color, secInd):
@@ -113,7 +114,7 @@ class RunScreen(MatrixBase):
     def run(self):
         self.alarmDB.updateDB();
         updateDbValues = 10 #How many seconds between calls
-        updateWeather = 30
+        updateWeather = 120
         updateDisplay = 0.05
 
         tdb = time.time() #db initial timer
@@ -124,7 +125,7 @@ class RunScreen(MatrixBase):
             self.time = datetime.datetime.now()
             t1 = time.time()
             if t1 - tw >= updateWeather:
-                self.checkWeather()
+                self.weather.updateWeatherStatus()
                 tw = time.time()
 
             if t1 - tdb >= updateDbValues:
@@ -139,5 +140,5 @@ class RunScreen(MatrixBase):
 # Main function
 if __name__ == "__main__":
     run_screen = RunScreen()
-    # if (not run_screen.process()):
-    #     run_screen.print_help()
+    if (not run_screen.process()):
+        run_screen.print_help()
