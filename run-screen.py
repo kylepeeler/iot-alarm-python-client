@@ -78,6 +78,7 @@ class RunScreen(SampleBase):
 
     def drawScreen(self):
         canvas = self.matrix.CreateFrameCanvas()
+        self.time = datetime.datetime.now()
         canvas.Clear()
         self.displayClock(canvas, graphics.Color(self.time_red, self.time_green, self.time_blue), self.time_record["position"])
         self.displayWeather(canvas, graphics.Color(self.weather_red, self.weather_green, self.weather_blue), self.weather_record["position"])
