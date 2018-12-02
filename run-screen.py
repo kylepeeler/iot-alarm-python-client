@@ -139,5 +139,5 @@ class RunScreen(MatrixBase):
 # Main function
 if __name__ == "__main__":
     run_screen = RunScreen()
-    # if (not run_screen.process()):
-    #     run_screen.print_help()
+    if (not run_screen.process()):
+        run_screen.print_help()
