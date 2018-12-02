@@ -15,11 +15,10 @@ owm = pyowm.OWM('412a6516f506201b00a7bc576cdd287a')
 
 class Weather():
     def __init__(self, *args, **kwargs):
-        self.weatherCity = 'Indianapolis'
-        self.updateWeatherStatus()
+        self.weatherString = "Fetching weather..."
         
-    def updateWeatherStatus(self):
-        self.currentWeather = owm.weather_at_place(self.weatherCity).get_weather()
+    def updateWeatherStatus(self, city):
+        self.currentWeather = owm.weather_at_place(city).get_weather()
         weatherStatus = self.currentWeather.get_status()
         weatherTemp = int(self.currentWeather.get_temperature('fahrenheit')['temp'])
         self.weatherString = "Temp: " + str(weatherTemp) + "F " + weatherStatus.lower() + " in " + self.weatherCity
@@ -125,7 +124,7 @@ class RunScreen(MatrixBase):
             self.time = datetime.datetime.now()
             t1 = time.time()
             if t1 - tw >= updateWeather:
-                self.weather.updateWeatherStatus()
+                self.weather.updateWeatherStatus(self.alarmDB.weather_record["city"])
                 tw = time.time()
 
             if t1 - tdb >= updateDbValues:
