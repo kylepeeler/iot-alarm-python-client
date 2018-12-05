@@ -2,6 +2,7 @@
 from MatrixBase import MatrixBase
 from rgbmatrix import graphics
 from pymongo import MongoClient
+import RPi.GPIO as GPIO
 import pyowm
 import time
 import datetime
@@ -10,6 +11,7 @@ import urllib
 import pymongo
 import pprint
 import sched
+import math
 
 owm = pyowm.OWM('412a6516f506201b00a7bc576cdd287a')
 client = MongoClient()
@@ -18,12 +20,29 @@ db = client.iotAlarmClock
 class Alarm():
     def __init__(self, *args, **kwargs):
         self.currentTime = datetime.datetime.now()
-        self.enabledAlarms = []
+        self.enabledAlarms = {} 
         self.alarmActive = False
 
-    def alarmMatchesTime(self):
-        for enabledAlarm in self.enabledAlarms:
-            pprint.pprint(enabledAlarm)
+    def checkAlarmsMatchesTime(self):
+        for id, enabledAlarm in self.enabledAlarms.iteritems():
+            now = datetime.datetime.now()
+            alarmTime = now.replace(hour=enabledAlarm["hour"], minute=enabledAlarm["min"], second=0)
+            if (now == alarmTime):
+                self.alarmActive = True
+
+    def getNextAlarmTime(self):
+        minDiff = 86401
+        nextAlarmDate = None
+        for id, enabledAlarm in self.enabledAlarms.iteritems():
+            now = datetime.datetime.now()
+            alarmTime = now.replace(hour=enabledAlarm["hour"], minute=enabledAlarm["min"], second=0)
+            if (now < alarmTime):
+                if ((alarmTime - now).total_seconds() < minDiff):
+                    minDiff = (alarmTime-now).total_seconds()
+                    nextAlarmDate = alarmTime
+        return nextAlarmDate;
+
+            
 
 class Weather():
     def __init__(self, *args, **kwargs):
@@ -60,7 +79,9 @@ class Database():
         self.time_green = self.time_record["color"]["g"]
         self.time_blue = self.time_record["color"]["b"]
         for alarm in db.alarms.find({"enabled": True}):
-            alarms.append(alarm)
+            #pprint.pprint(alarm)
+            if (alarm["days"][datetime.datetime.now().strftime("%A").lower()]):
+                alarms[alarm["_id"]] = alarm
         
 
 class RunScreen(MatrixBase):
@@ -89,11 +110,15 @@ class RunScreen(MatrixBase):
 
     def drawScreen(self):
         canvas = self.matrix.CreateFrameCanvas()
-        canvas.Clear()
-        self.displayClock(canvas, graphics.Color(self.alarmDB.time_red, self.alarmDB.time_green, self.alarmDB.time_blue), self.alarmDB.time_record["position"])
-        self.displayWeather(canvas, self.weather.weatherString, graphics.Color(self.alarmDB.weather_red, self.alarmDB.weather_green, self.alarmDB.weather_blue), self.alarmDB.weather_record["position"])
-        self.displayText(canvas, self.alarmDB.text_record["text"], graphics.Color(self.alarmDB.text_red, self.alarmDB.text_green, self.alarmDB.text_blue), 3, self.alarmDB.text_record["position"])
-        self.displayDate(canvas, graphics.Color(self.alarmDB.date_red, self.alarmDB.date_green, self.alarmDB.date_blue), self.alarmDB.date_record["position"])
+        if not (self.alarmInstance.alarmActive):
+            canvas.Clear()
+            self.displayClock(canvas, graphics.Color(self.alarmDB.time_red, self.alarmDB.time_green, self.alarmDB.time_blue), self.alarmDB.time_record["position"])
+            self.displayWeather(canvas, self.weather.weatherString, graphics.Color(self.alarmDB.weather_red, self.alarmDB.weather_green, self.alarmDB.weather_blue), self.alarmDB.weather_record["position"])
+            self.displayText(canvas, self.alarmDB.text_record["text"], graphics.Color(self.alarmDB.text_red, self.alarmDB.text_green, self.alarmDB.text_blue), 3, self.alarmDB.text_record["position"])
+            self.displayDate(canvas, graphics.Color(self.alarmDB.date_red, self.alarmDB.date_green, self.alarmDB.date_blue), self.alarmDB.date_record["position"])
+            self.displayNextAlarmTime(canvas, graphics.Color(self.alarmDB.nextalarm_red, self.alarmDB.nextalarm_green, self.alarmDB.nextalarm_blue), self.alarmDB.nextalarm_record["position"])
+        else:
+            self.matrix.Fill(255,0,0)
         canvas = self.matrix.SwapOnVSync(canvas)
             
     def getSectionHeight(self, sectionIndex):
@@ -122,16 +147,31 @@ class RunScreen(MatrixBase):
     def displayClock(self, canvas, color, secInd):
         self.displayText(canvas, self.time.strftime("%I:%M%p"), color, 2, secInd)
 
+    def displayNextAlarmTime(self, canvas, color, secInd):
+        nextAlarm = self.alarmInstance.getNextAlarmTime()
+        if (self.alarmDB.nextalarm_record["displayAsCountdown"]):
+            now = datetime.datetime.now()
+            diffInSec = (nextAlarm-now).total_seconds()
+            hours = int((diffInSec%(24*3600))/3600)
+            minutes = math.ceil(((diffInSec%(24*3600*3600))/60)) - (60*hours)
+            self.displayText(canvas, (str(int(hours)) +"h "+str(int(minutes))+"m until next alarm"), color, 0, secInd)
+        else:
+            self.displayText(canvas, "Next alarm at " + nextAlarm.strftime("%I:%M%p"), color, 0, secInd) 
+
     def run(self):
         self.alarmDB.updateDB(self.alarmInstance.enabledAlarms);
         self.weather.updateWeatherStatus(self.alarmDB.weather_record["city"])
         updateDbValues = 10 #How many seconds between calls
         updateWeather = 120
-        updateDisplay = 0.05
+        updateDisplay = 0.04
+        updateAlarm = 1
 
+        tac = time.time()
         tdb = time.time() #db initial timer
         tw = time.time() #weather timer
         tdisp = time.time() #display initial timer
+        
+        print self.alarmInstance.getNextAlarmTime()
 
         while True:
             self.time = datetime.datetime.now()
@@ -142,10 +182,20 @@ class RunScreen(MatrixBase):
 
             if t1 - tdb >= updateDbValues:
                 self.alarmDB.updateDB(self.alarmInstance.enabledAlarms)
-                self.alarmInstance.alarmMatchesTime()
                 tdb = time.time()
 
-            if t1 - tdisp >= updateDisplay:
+            if t1 - tac >= updateAlarm:
+                self.alarmInstance.checkAlarmsMatchesTime()
+                tac = time.time()
+
+            if not self.alarmInstance.alarmActive and t1 - tdisp >= updateDisplay:
+                self.drawScreen()
+                tdisp = time.time()
+
+            if self.alarmInstance.alarmActive and t1 - tdisp >= .2:
+                input_state = GPIO.input(18)
+                if input_state === False:
+                    self.alarmInstance.alarmActive = False
                 self.drawScreen()
                 tdisp = time.time()
                     
