@@ -155,7 +155,12 @@ class RunScreen(MatrixBase):
         self.displayText(canvas, weatherString, color, 0, secInd)
             
     def displayClock(self, canvas, color, secInd):
-        self.displayText(canvas, self.time.strftime("%I:%M%p"), color, 2, secInd)
+        timestr = "%I:%M%p"
+        timexoff = 2
+        if (self.alarmDB.time_record["format24"]):
+            timestr = "%H:%M"
+            timexoff=6
+        self.displayText(canvas, self.time.strftime(timestr), color, timexoff, secInd)
 
     def displayNextAlarmTime(self, canvas, color, secInd):
         nextAlarm = self.alarmInstance.getNextAlarmTime()
