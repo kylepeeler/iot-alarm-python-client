@@ -142,6 +142,7 @@ class RunScreen(MatrixBase):
 
             if t1 - tdb >= updateDbValues:
                 self.alarmDB.updateDB(self.alarmInstance.enabledAlarms)
+                self.alarmInstance.alarmMatchesTime()
                 tdb = time.time()
 
             if t1 - tdisp >= updateDisplay:
