@@ -12,6 +12,18 @@ import pprint
 import sched
 
 owm = pyowm.OWM('412a6516f506201b00a7bc576cdd287a')
+client = MongoClient()
+db = client.iotAlarmClock
+
+class Alarm():
+    def __init__(self, *args, **kwargs):
+        self.currentTime = datetime.datetime.now()
+        self.enabledAlarms = []
+        self.alarmActive = False
+
+    def alarmMatchesTime(self):
+        for enabledAlarm in self.enabledAlarms:
+            pprint.pprint(enabledAlarm)
 
 class Weather():
     def __init__(self, *args, **kwargs):
@@ -25,17 +37,15 @@ class Weather():
 
 class Database():
       def __init__(self, *args, **kwargs):
-          client = MongoClient()
-          self.db = client.iotAlarmClock
           self.updateDB()
       
-      def updateDB(self):
+      def updateDB(self, alarms):
         pprint.pprint("Refreshing MongoDB values...")
-        self.text_record = self.db.texts.find_one({"context": "text"})
-        self.weather_record = self.db.weathers.find_one({"context": "weather"})
-        self.nextalarm_record = self.db.nextalarms.find_one({"context": "nextalarm"})
-        self.date_record = self.db.dates.find_one({"context": "date"})
-        self.time_record = self.db.times.find_one({"context": "time"})
+        self.text_record = db.texts.find_one({"context": "text"})
+        self.weather_record = db.weathers.find_one({"context": "weather"})
+        self.nextalarm_record = db.nextalarms.find_one({"context": "nextalarm"})
+        self.date_record = db.dates.find_one({"context": "date"})
+        self.time_record = db.times.find_one({"context": "time"})
         self.text_red = self.text_record["color"]["r"]
         self.text_green = self.text_record["color"]["g"]
         self.text_blue = self.text_record["color"]["b"]
@@ -51,6 +61,8 @@ class Database():
         self.time_red = self.time_record["color"]["r"]
         self.time_green = self.time_record["color"]["g"]
         self.time_blue = self.time_record["color"]["b"]
+        for alarm in db.alarms.find({"enabled": True}):
+            alarms.append(alarm)
         
 
 class RunScreen(MatrixBase):
@@ -65,6 +77,7 @@ class RunScreen(MatrixBase):
         self.time = datetime.datetime.now()
         self.alarmDB = Database()
         self.weather = Weather()
+        self.alarmInstance = Alarm()
 
     def scroll(self, secInd, length):
         if (secInd >= 0 and secInd <= 3 and length > 32):
@@ -111,7 +124,7 @@ class RunScreen(MatrixBase):
         self.displayText(canvas, self.time.strftime("%I:%M%p"), color, 2, secInd)
 
     def run(self):
-        self.alarmDB.updateDB();
+        self.alarmDB.updateDB(self.alarmInstance.enabledAlarms);
         updateDbValues = 10 #How many seconds between calls
         updateWeather = 120
         updateDisplay = 0.05
@@ -128,7 +141,7 @@ class RunScreen(MatrixBase):
                 tw = time.time()
 
             if t1 - tdb >= updateDbValues:
-                self.alarmDB.updateDB()
+                self.alarmDB.updateDB(self.alarmInstance.enabledAlarms)
                 tdb = time.time()
 
             if t1 - tdisp >= updateDisplay:
