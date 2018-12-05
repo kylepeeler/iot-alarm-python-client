@@ -149,7 +149,11 @@ class RunScreen(MatrixBase):
             self.scroll(secInd, graphics.DrawText(canvas, self.font, xOffset + getattr(self, "scrollPos" + str(secInd)), height, color, text))
     
     def displayDate(self, canvas, color, secInd):
-        self.displayText(canvas, self.time.strftime("%x"), color, 0, secInd)
+        if (self.alarmDB.date_record["showFullDate"]):
+            datestr="%A, %B %d, %Y"
+        else:
+            datestr="%x"    
+        self.displayText(canvas, self.time.strftime(datestr), color, 0, secInd)
 
     def displayWeather(self, canvas, weatherString, color, secInd):
         self.displayText(canvas, weatherString, color, 0, secInd)
