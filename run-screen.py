@@ -12,10 +12,17 @@ import pymongo
 import pprint
 import sched
 import math
+import pygame
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(18, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 owm = pyowm.OWM('412a6516f506201b00a7bc576cdd287a')
 client = MongoClient()
 db = client.iotAlarmClock
+
+pygame.mixer.init(44100, -16,2,2048)
+pygame.mixer.music.load('alarm.mp3')
 
 class Alarm():
     def __init__(self, *args, **kwargs):
@@ -149,12 +156,14 @@ class RunScreen(MatrixBase):
 
     def displayNextAlarmTime(self, canvas, color, secInd):
         nextAlarm = self.alarmInstance.getNextAlarmTime()
-        if (self.alarmDB.nextalarm_record["displayAsCountdown"]):
+        if (self.alarmDB.nextalarm_record["displayAsCountdown"] and nextAlarm is not None):
             now = datetime.datetime.now()
             diffInSec = (nextAlarm-now).total_seconds()
             hours = int((diffInSec%(24*3600))/3600)
             minutes = math.ceil(((diffInSec%(24*3600*3600))/60)) - (60*hours)
             self.displayText(canvas, (str(int(hours)) +"h "+str(int(minutes))+"m until next alarm"), color, 0, secInd)
+        elif (nextAlarm is None):
+            self.displayText(canvas, "No alarms set", color, 0, secInd) 
         else:
             self.displayText(canvas, "Next alarm at " + nextAlarm.strftime("%I:%M%p"), color, 0, secInd) 
 
@@ -193,8 +202,11 @@ class RunScreen(MatrixBase):
                 tdisp = time.time()
 
             if self.alarmInstance.alarmActive and t1 - tdisp >= .2:
+                if not pygame.mixer.music.get_busy():
+                    pygame.mixer.music.play(-1)
                 input_state = GPIO.input(18)
-                if input_state === False:
+                if input_state == False:
+                    pygame.mixer.music.stop()
                     self.alarmInstance.alarmActive = False
                 self.drawScreen()
                 tdisp = time.time()
