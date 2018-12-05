@@ -56,10 +56,13 @@ class Weather():
         self.weatherString = "Fetching weather..."
         
     def updateWeatherStatus(self, city):
-        self.currentWeather = owm.weather_at_place(city).get_weather()
-        weatherStatus = self.currentWeather.get_status()
-        weatherTemp = int(self.currentWeather.get_temperature('fahrenheit')['temp'])
-        self.weatherString = "Temp: " + str(weatherTemp) + "F " + weatherStatus.lower() + " in " + city
+        try:
+            self.currentWeather = owm.weather_at_place(city).get_weather()
+            weatherStatus = self.currentWeather.get_status()
+            weatherTemp = int(self.currentWeather.get_temperature('fahrenheit')['temp'])
+            self.weatherString = "Temp: " + str(weatherTemp) + "F " + weatherStatus.lower() + " in " + city
+        except:
+            self.weatherString = "Failed to load weather"
         print("Updated weather")
 
 class Database():
