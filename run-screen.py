@@ -33,11 +33,12 @@ class Weather():
         self.currentWeather = owm.weather_at_place(city).get_weather()
         weatherStatus = self.currentWeather.get_status()
         weatherTemp = int(self.currentWeather.get_temperature('fahrenheit')['temp'])
-        self.weatherString = "Temp: " + str(weatherTemp) + "F " + weatherStatus.lower() + " in " + self.weatherCity
+        self.weatherString = "Temp: " + str(weatherTemp) + "F " + weatherStatus.lower() + " in " + city
+        print("Updated weather")
 
 class Database():
       def __init__(self, *args, **kwargs):
-          self.updateDB()
+          self.updateDB(self.alarmInstance.enabledAlarms)
       
       def updateDB(self, alarms):
         pprint.pprint("Refreshing MongoDB values...")
@@ -125,6 +126,7 @@ class RunScreen(MatrixBase):
 
     def run(self):
         self.alarmDB.updateDB(self.alarmInstance.enabledAlarms);
+        self.weather.updateWeatherStatus(self.alarmDB.weather_record["city"])
         updateDbValues = 10 #How many seconds between calls
         updateWeather = 120
         updateDisplay = 0.05
