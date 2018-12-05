@@ -37,9 +37,6 @@ class Weather():
         print("Updated weather")
 
 class Database():
-      def __init__(self, *args, **kwargs):
-          self.updateDB(self.alarmInstance.enabledAlarms)
-      
       def updateDB(self, alarms):
         pprint.pprint("Refreshing MongoDB values...")
         self.text_record = db.texts.find_one({"context": "text"})
@@ -79,6 +76,7 @@ class RunScreen(MatrixBase):
         self.alarmDB = Database()
         self.weather = Weather()
         self.alarmInstance = Alarm()
+        self.alarmDB.updateDB(self.alarmInstance.enabledAlarms)
 
     def scroll(self, secInd, length):
         if (secInd >= 0 and secInd <= 3 and length > 32):
