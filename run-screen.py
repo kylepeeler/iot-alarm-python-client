@@ -13,9 +13,12 @@ import pprint
 import sched
 import math
 import pygame
+import requests
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(18, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+BASE_URI = "http://3.17.14.213:3000/"
 
 owm = pyowm.OWM('412a6516f506201b00a7bc576cdd287a')
 client = MongoClient()
@@ -67,12 +70,38 @@ class Weather():
 
 class Database():
       def updateDB(self, alarms):
-        pprint.pprint("Refreshing MongoDB values...")
-        self.text_record = db.texts.find_one({"context": "text"})
-        self.weather_record = db.weathers.find_one({"context": "weather"})
-        self.nextalarm_record = db.nextalarms.find_one({"context": "nextalarm"})
-        self.date_record = db.dates.find_one({"context": "date"})
-        self.time_record = db.times.find_one({"context": "time"})
+        pprint.pprint("Refreshing module values...")
+        
+        text_request = requests.get(BASE_URI + "/text")
+        text_request_json = json.loads(text_request.text)
+        self.text_record = text_request_json[0]
+
+        # self.text_record = db.texts.find_one({"context": "text"})
+
+        weather_request = requests.get(BASE_URI + "/weather")
+        weather_request_json = json.loads(weather_request.text)
+        self.weather_record = weather_request_json[0]
+
+        # self.weather_record = db.weathers.find_one({"context": "weather"})
+
+        nextalarm_request = requests.get(BASE_URI + "/nextalarm")
+        nextalarm_request_json = json.loads(nextalarm_request.text)
+        self.nextalarm_record = nextalarm_request_json[0]
+
+        # self.nextalarm_record = db.nextalarms.find_one({"context": "nextalarm"})
+
+        date_request = requests.get(BASE_URI + "/date")
+        date_request_json = json.loads(date_request.text)
+        self.date_record = date_request_json[0]
+
+        # self.date_record = db.dates.find_one({"context": "date"})
+        
+        time_request = requests.get(BASE_URI + "/time")
+        time_request_json = json.loads(time_request.text)
+        self.time_record = time_request_json[0]
+
+        # self.time_record = db.times.find_one({"context": "time"})
+
         self.text_red = self.text_record["color"]["r"]
         self.text_green = self.text_record["color"]["g"]
         self.text_blue = self.text_record["color"]["b"]
@@ -88,9 +117,14 @@ class Database():
         self.time_red = self.time_record["color"]["r"]
         self.time_green = self.time_record["color"]["g"]
         self.time_blue = self.time_record["color"]["b"]
-        for alarm in db.alarms.find({"enabled": True}):
+
+        alarm_request = requests.get(BASE_URI + "/alarms")
+        alarm_request_json = json.loads(alarm_request.text)
+
+        for alarm in alarm_request_json:
+            if(alarm["enabled"] == true):
             #pprint.pprint(alarm)
-            if (alarm["days"][datetime.datetime.now().strftime("%A").lower()]):
+              if (alarm["days"][datetime.datetime.now().strftime("%A").lower()]):
                 alarms[alarm["_id"]] = alarm
         
 
